@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Document anonymizer for police records</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<style>
+:root{--bg:#f2f5f7;--surf:#fff;--ink:#14232e;--mute:#566a7a;--line:#cfd9e0;--teal:#0f766e;--brick:#b4452b;--amber:#c98a12;--tealbg:#dff1ee;--hi:#fbe9b8;--on:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a22;--surf:#172733;--ink:#e8eef2;--mute:#9bb0bf;--line:#2c4252;--teal:#4fd1c0;--brick:#f08c72;--amber:#e8b44a;--tealbg:#17383a;--hi:#4a3d14;--on:#0f1a22}}
+:root[data-theme="dark"]{--bg:#0f1a22;--surf:#172733;--ink:#e8eef2;--mute:#9bb0bf;--line:#2c4252;--teal:#4fd1c0;--brick:#f08c72;--amber:#e8b44a;--tealbg:#17383a;--hi:#4a3d14;--on:#0f1a22}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 "Source Sans 3",system-ui,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:22px 16px 48px}
+h1{font:700 clamp(24px,4.5vw,34px)/1.15 "Source Serif 4",Georgia,serif;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+h2{font:600 18px "Source Serif 4",Georgia,serif;margin:0 0 8px}
+textarea{width:100%;font:14px/1.45 ui-monospace,Consolas,monospace;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px;resize:vertical}
+label.f{display:block;font-weight:600;margin:12px 0 4px}
+button,.btn{font:600 14px "Source Sans 3",system-ui,sans-serif;padding:8px 14px;border-radius:6px;border:1px solid var(--teal);background:var(--teal);color:var(--on);cursor:pointer}
+button.sec{background:none;color:var(--teal)}
+button:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left}
+select{font:14px "Source Sans 3",system-ui,sans-serif;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:3px}
+.n{font-variant-numeric:tabular-nums;color:var(--mute)}
+.tabs{display:flex;gap:4px;margin:0 0 8px}
+.tabs button{border-radius:6px 6px 0 0}
+.out{min-height:260px;max-height:420px;overflow:auto;white-space:pre-wrap;word-break:break-word;font:14px/1.5 ui-monospace,Consolas,monospace;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px}
+mark{background:var(--hi);color:var(--ink);border-radius:3px;padding:0 2px}
+.note{border-left:4px solid var(--amber);padding:8px 12px;background:var(--bg);margin:12px 0 0;font-size:14px}
+.stat{color:var(--mute);font-size:14px;margin:0 0 8px}
+input[type=file]{font-size:14px;max-width:100%}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Document anonymizer</h1>
+<p class="sub">Hide names, phone numbers, IDs and addresses before a record is shared. Everything runs in your browser; nothing is uploaded.</p>
+<div class="grid">
+<section class="card">
+<h2>1. Add the document</h2>
+<div class="row"><input type="file" id="file" accept=".txt,.csv,.md,.docx"><button class="sec" id="sample">Try a synthetic FIR</button></div>
+<p class="stat" id="fmsg">Accepts .txt, .csv, .md and .docx. For a PDF, paste the text below.</p>
+<textarea id="inp" rows="9" placeholder="Paste or upload text here"></textarea>
+<label class="f" for="extra">Names to always hide (one per line)</label>
+<textarea id="extra" rows="3" placeholder="Ravi Kumar&#10;Anita Sharma"></textarea>
+<h2 style="margin-top:14px">2. Choose what happens to each kind of data</h2>
+<table><thead><tr><th>Data</th><th>Found</th><th>Action</th></tr></thead><tbody id="rules"></tbody></table>
+</section>
+<section class="card">
+<h2>3. Check and save</h2>
+<p class="stat" id="stat">Nothing to show yet.</p>
+<div class="tabs"><button id="t1">Clean text</button><button class="sec" id="t2">What changed</button></div>
+<div class="out" id="out" tabindex="0"></div>
+<div class="row" style="margin-top:10px">
+<button id="dl">Save cleaned text</button><button class="sec" id="dk">Save key (secure it)</button><button class="sec" id="cp">Copy</button>
+</div>
+<p class="stat" id="msg" role="status"></p>
+<div class="note">The key file links each code back to the real value, so it is still personal data. Keep it apart from the shared copy, under access control. Automatic detection misses things, especially names in free text: read the result before sharing, and add missed names in the box on the left.</div>
+</section>
+</div>
+</div>
+<script>
+var CATS=[
+{id:'custom',label:'Names you listed',pfx:'P',mode:'pseudo'},
+{id:'aadhaar',label:'Aadhaar number',pfx:'AADHAAR',mode:'mask',re:[/(?<!\d)\d{4}[ -]\d{4}[ -]\d{4}(?!\d)/g]},
+{id:'pan',label:'PAN',pfx:'PAN',mode:'mask',re:[/\b[A-Z]{5}\d{4}[A-Z]\b/g]},
+{id:'email',label:'Email address',pfx:'EMAIL',mode:'mask',re:[/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g]},
+{id:'phone',label:'Phone number',pfx:'PHONE',mode:'mask',re:[/(?<!\d)(?:\+91[ -]?|0)?[6-9]\d{4}[ -]?\d{5}(?!\d)/g]},
+{id:'vehicle',label:'Vehicle number',pfx:'VEH',mode:'mask',re:[/\b[A-Z]{2}[ -]?\d{1,2}[A-Z]{0,2}[ -]?[A-Z]{1,3}[ -]?\d{4}\b/g]},
+{id:'ip',label:'IP address',pfx:'IP',mode:'general',re:[/\b(?:\d{1,3}\.){3}\d{1,3}\b/g]},
+{id:'dob',label:'Date of birth or date',pfx:'DATE',mode:'general',re:[/\b\d{1,2}[\/.-]\d{1,2}[\/.-](?:19|20)\d{2}\b/g]},
+{id:'age',label:'Age',pfx:'AGE',mode:'general',re:[/(?<=\baged?[ \t:]+)\d{1,2}\b/gi,/\b\d{1,2}(?=[ \t]*(?:years?|yrs?)[ \t-]*old)/gi]},
+{id:'account',label:'Account or card number',pfx:'ACCT',mode:'mask',re:[/(?<!\d)\d{9,18}(?!\d)/g]},
+{id:'pin',label:'PIN code',pfx:'PIN',mode:'general',re:[/(?<!\d)[1-9]\d{5}(?!\d)/g]},
+{id:'addr',label:'Address lines',pfx:'ADDR',mode:'mask',re:[/(?<=\b(?:Address|ADDRESS|Resident of|R\/o)[ \t]*[:\-]?[ \t]*)[^\s:\-,;][^\n,;]{5,59}/g]},
+{id:'name',label:'Names (titles and labels)',pfx:'P',mode:'pseudo',re:[
+ /\b(?:Shri|Sri|Smt|Sh|Km|Mr|Mrs|Ms|Dr|Inspector|Sub-Inspector|SI|ASI|Constable|SHO)\.?[ \t]+[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+){0,2}/g,
+ /(?<=\b(?:Name|NAME|Complainant|Victim|Accused|Witness|Informer|Father|Mother|Husband|Wife)[ \t]*[:\-][ \t]*)[A-Z][\w.]*(?:[ \t]+[A-Z][\w.]*){0,3}/g]}
+];
+var MODES=[['mask','Mask'],['pseudo','Replace with code'],['general','Generalise'],['remove','Remove'],['keep','Keep']];
+var SAMPLE='FIR No. 214/2026, PS Connaught Place\nComplainant: Ravi Kumar, age 24, phone 9810011111, email ravi.k@example.com\nAddress: 12 Barakhamba Road, PIN 110001\nAccused: Mohan Das (DOB 14/03/1990), vehicle DL 8C AB 1234, Aadhaar 1234 5678 9012\nWitness: Anita Sharma, 9810022222. Inspector Verma recorded the statement.\nAmount of Rs 2,00,000 moved to account 123456789012 from IP 203.0.113.45.\nPAN of accused: ABCDE1234F.';
+var $=function(i){return document.getElementById(i)};
+var state={clean:'',key:[],segs:[],view:1,name:'document'};
+CATS.forEach(function(c){c.cur=c.mode});
+function buildRules(){
+ $('rules').innerHTML='';
+ CATS.forEach(function(c){var tr=document.createElement('tr');
+  var a=document.createElement('td');a.textContent=c.label;
+  var b=document.createElement('td');b.className='n';b.id='n_'+c.id;b.textContent='0';
+  var d=document.createElement('td');var s=document.createElement('select');s.setAttribute('aria-label',c.label);
+  MODES.forEach(function(m){var o=document.createElement('option');o.value=m[0];o.textContent=m[1];if(m[0]==c.cur)o.selected=true;s.appendChild(o)});
+  s.onchange=function(){c.cur=s.value;run()};d.appendChild(s);
+  tr.appendChild(a);tr.appendChild(b);tr.appendChild(d);$('rules').appendChild(tr)})}
+function esc(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
+function detect(text){
+ var found=[],taken=[];
+ function free(s,e){return !taken.some(function(t){return s<t[1]&&e>t[0]})}
+ function add(c,s,e){if(e<=s||!free(s,e))return;taken.push([s,e]);found.push({s:s,e:e,cat:c,v:text.slice(s,e)})}
+ var names=$('extra').value.split('\n').map(function(x){return x.trim()}).filter(Boolean);
+ CATS.forEach(function(c){
+  if(c.id=='custom'){names.forEach(function(n){var re=new RegExp('(?<![\\w])'+esc(n)+'(?![\\w])','gi');var m;while((m=re.exec(text)))add(c,m.index,m.index+m[0].length)});return}
+  c.re.forEach(function(re){re.lastIndex=0;var m;while((m=re.exec(text))){add(c,m.index,m.index+m[0].length);if(m[0].length==0)re.lastIndex++}})});
+ return found.sort(function(a,b){return a.s-b.s})}
+function band(n){n=parseInt(n,10);var lo=Math.floor(n/10)*10;return lo+'-'+(lo+9)}
+function repl(c,v,mode,codes){
+ var dig=v.replace(/\D/g,'');
+ if(mode=='remove')return '[REMOVED]';
+ if(mode=='pseudo'){var k=c.pfx+'|'+v.toLowerCase().replace(/\s+/g,' ');
+  if(!codes.map[k]){codes.n[c.pfx]=(codes.n[c.pfx]||0)+1;codes.map[k]=c.pfx+'-'+String(codes.n[c.pfx]).padStart(3,'0');state.key.push([codes.map[k],v,c.label])}
+  return codes.map[k]}
+ if(mode=='general'){
+  if(c.id=='pin')return v.slice(0,3)+'XXX';
+  if(c.id=='age')return band(v);
+  if(c.id=='dob'){var y=v.match(/(?:19|20)\d{2}/);return y?y[0]:'[DATE]'}
+  if(c.id=='ip')return v.split('.').slice(0,2).join('.')+'.x.x';
+  if(c.id=='phone')return dig.slice(-10,-5)+'XXXXX'}
+ if(c.id=='phone')return 'XXXXXXXXXX';
+ if(c.id=='aadhaar')return 'XXXX XXXX XXXX';
+ if(c.id=='pan')return 'XXXXXXXXXX';
+ if(c.id=='account')return 'X'.repeat(Math.max(v.length-4,4))+v.slice(-4);
+ if(c.id=='pin')return '[PIN]';
+ if(c.id=='age')return '[AGE]';
+ if(c.id=='dob')return '[DATE]';
+ if(c.id=='ip')return 'x.x.x.x';
+ if(c.id=='email')return '[EMAIL]';
+ if(c.id=='addr')return '[ADDRESS]';
+ if(c.id=='vehicle')return '[VEHICLE]';
+ return '[NAME]'}
+function run(){
+ var text=$('inp').value;state.key=[];
+ var f=detect(text),codes={map:{},n:{}},out='',pos=0,segs=[],cnt={},total=0;
+ f.forEach(function(x){cnt[x.cat.id]=(cnt[x.cat.id]||0)+1});
+ CATS.forEach(function(c){$('n_'+c.id).textContent=cnt[c.id]||0});
+ f.forEach(function(x){
+  var mode=x.cat.cur;if(mode=='keep')return;
+  var r=repl(x.cat,x.v,mode,codes);total++;
+  segs.push([text.slice(pos,x.s),null]);segs.push([r,x.cat.label]);out+=text.slice(pos,x.s)+r;pos=x.e});
+ out+=text.slice(pos);segs.push([text.slice(pos),null]);
+ state.clean=out;state.segs=segs;
+ $('stat').textContent=text.trim()?(total+' items changed in '+text.length+' characters.'):'Nothing to show yet.';
+ show()}
+function show(){
+ var o=$('out');o.textContent='';
+ if(state.view==1){o.textContent=state.clean}
+ else state.segs.forEach(function(s){if(s[1]){var m=document.createElement('mark');m.textContent=s[0];m.title=s[1];o.appendChild(m)}else o.appendChild(document.createTextNode(s[0]))});
+ $('t1').className=state.view==1?'':'sec';$('t2').className=state.view==2?'':'sec'}
+function say(t){$('msg').textContent=t}
+async function save(name,data){
+ try{var d=await claude.use('downloads');if(!d){say('Saving is not available here. Use Copy instead.');return}
+  await d.save({filename:name,data:data});say('Saved '+name+'.')}
+ catch(e){say(e&&e.code=='declined'?'Save cancelled.':'Could not save. Use Copy instead.')}}
+function csvq(s){return '"'+String(s).replace(/"/g,'""')+'"'}
+$('t1').onclick=function(){state.view=1;show()};$('t2').onclick=function(){state.view=2;show()};
+$('dl').onclick=function(){if(!state.clean.trim()){say('Add a document first.');return}save(state.name+'_anonymised.txt',state.clean)};
+$('dk').onclick=function(){if(!state.key.length){say('The key is empty. Set at least one kind of data to “Replace with code”.');return}
+ save(state.name+'_key.csv','code,original,type\n'+state.key.map(function(r){return r.map(csvq).join(',')}).join('\n'))};
+$('cp').onclick=function(){var t=state.clean;if(!t){say('Nothing to copy.');return}
+ (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(function(){say('Copied.')},function(){var r=document.createRange();r.selectNodeContents($('out'));state.view=1;show();var s=getSelection();s.removeAllRanges();s.addRange(r);say('Text selected: press Ctrl+C or long-press to copy.')})};
+$('sample').onclick=function(){$('inp').value=SAMPLE;$('extra').value='';state.name='sample_fir';run()};
+$('file').onchange=async function(e){
+ var f=e.target.files[0];if(!f)return;state.name=f.name.replace(/\.[^.]+$/,'')||'document';
+ try{
+  if(/\.docx$/i.test(f.name)){
+   if(!window.mammoth){$('fmsg').textContent='The Word reader did not load. Paste the text instead.';return}
+   var r=await mammoth.extractRawText({arrayBuffer:await f.arrayBuffer()});$('inp').value=r.value;
+   $('fmsg').textContent='Read '+f.name+'. Formatting is dropped; the result is saved as plain text.'}
+  else if(/\.(txt|csv|md)$/i.test(f.name)){$('inp').value=await f.text();$('fmsg').textContent='Read '+f.name+'.'}
+  else{$('fmsg').textContent='This format is not supported here. Paste the text, or save the file as .docx or .txt first.';return}
+  run()}catch(err){$('fmsg').textContent='Could not read that file. Paste the text instead.'}};
+$('inp').oninput=run;$('extra').oninput=run;
+buildRules();run();
+</script>
+</body>
+</html>
